@@ -1,0 +1,1 @@
+{"version":1,"name":"Whack a Mole","description":"Whack every mole in 45 seconds.","appearance":{"theme_color":"#FB923C","icon":{"src":"../icon-mono.png","type":"monochrome"},"icon_background":{"colors":["#FB923C","#F472B6","#1E1B4B","#04020F"],"stops":[0.0,0.33,0.66,1.0],"inner_glow_color":"#FED7AA"}}}
