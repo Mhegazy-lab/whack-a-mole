@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="color-scheme" content="dark" />
+<meta name="application-name" content="Whack a Mole" />
+<meta name="description" content="Whack every mole in 45 seconds." />
+<link rel="icon" type="image/png" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<title>Whack a Mole</title>
+<style>
+  :root{--acc:#FB923C; --bg:#120903; --ink:#fff5ea; --muted:#8a6f52; --gold:#FACC15;}
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%; overflow:hidden}
+  body{
+    background:radial-gradient(120% 90% at 50% 0%, #2a1503 0%, var(--bg) 65%);
+    color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex; align-items:center; justify-content:center; min-height:100dvh;
+    -webkit-font-smoothing:antialiased; -webkit-user-select:none; user-select:none;
+  }
+  .app{width:min(480px,100vw - 24px); height:100dvh; max-height:780px; display:flex; flex-direction:column; padding:16px 14px 12px}
+  header{flex:0 0 auto; text-align:center}
+  h1{font-size:19px; letter-spacing:.16em; color:var(--acc); text-shadow:0 0 18px rgba(251,146,60,.6)}
+  .meta{display:flex; justify-content:center; gap:14px; margin-top:6px}
+  .pill{font-size:13px; font-weight:800; letter-spacing:.12em; border:1px solid rgba(251,146,60,.35); border-radius:999px; padding:5px 14px; background:rgba(251,146,60,.07)}
+  .pill b{color:var(--acc); font-size:16px; font-variant-numeric:tabular-nums}
+  #timebar{flex:0 0 auto; height:10px; border-radius:999px; background:#2a1a08; margin:10px 0 4px; overflow:hidden}
+  #timefill{height:100%; width:100%; border-radius:999px; background:linear-gradient(90deg,#FB923C,#FACC15); box-shadow:0 0 12px rgba(251,146,60,.7)}
+  #holes{flex:1 1 auto; min-height:0; display:grid; grid-template-columns:repeat(3,1fr); grid-template-rows:repeat(3,1fr); gap:10px; margin-bottom:10px}
+  .hole{
+    border:2px solid rgba(251,146,60,.35); border-radius:50% 50% 46% 46%; background:#1c1006;
+    cursor:pointer; position:relative; display:flex; align-items:center; justify-content:center;
+    font-size:44px; overflow:hidden;
+  }
+  .hole .mole{transform:translateY(110%); transition:transform .12s; line-height:1}
+  .hole.up .mole{transform:translateY(0)}
+  .hole.up{border-color:var(--acc); box-shadow:0 0 18px rgba(251,146,60,.55), inset 0 -14px 24px rgba(251,146,60,.25)}
+  .hole.up.gold{border-color:var(--gold); box-shadow:0 0 22px rgba(250,204,21,.8), inset 0 -14px 24px rgba(250,204,21,.3)}
+  .hole.whacked{animation:whk .25s}
+  @keyframes whk{0%{transform:scale(1)}40%{transform:scale(.88)}100%{transform:scale(1)}}
+  .hidden{display:none !important}
+  .btn{
+    flex:0 0 auto; width:100%; border:none; border-radius:18px; padding:20px;
+    font-size:20px; font-weight:900; letter-spacing:.16em; cursor:pointer;
+    background:linear-gradient(160deg,#FB923C,#9a4a0e); color:#1f0e02;
+    box-shadow:0 0 26px rgba(251,146,60,.45);
+  }
+  .btn:active{transform:scale(.97)}
+  #overPanel{flex:0 0 auto; text-align:center; border:1px solid rgba(251,146,60,.4); border-radius:18px; padding:16px 12px; background:rgba(251,146,60,.06)}
+  #overPanel .t{font-size:24px; font-weight:900; letter-spacing:.18em; color:var(--acc); text-shadow:0 0 20px rgba(251,146,60,.7)}
+  #overPanel .r{font-size:15px; margin:8px 0 4px; letter-spacing:.1em}
+  #overPanel .r b{color:var(--acc); font-size:22px}
+  #overPanel .nb{font-size:12px; color:var(--muted); letter-spacing:.14em; margin-bottom:12px}
+  button:focus-visible{outline:3px solid var(--acc); outline-offset:2px}
+</style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>◉ WHACK A MOLE ◉</h1>
+      <div class="meta">
+        <div class="pill">SCORE <b id="scoreNum">0</b></div>
+        <div class="pill">TIME <b id="timeNum">45</b></div>
+        <div class="pill">BEST <b id="bestNum">0</b></div>
+      </div>
+    </header>
+    <div id="timebar"><div id="timefill"></div></div>
+    <div id="holes"></div>
+    <button id="startBtn" class="btn" data-focusable>▶ START</button>
+    <div id="overPanel" class="hidden">
+      <div class="t">TIME'S UP!</div>
+      <div class="r">SCORE <b id="finalScore">0</b></div>
+      <div class="nb" id="newBest"></div>
+      <button id="againBtn" class="btn" data-focusable>↻ PLAY AGAIN</button>
+    </div>
+  </main>
+<script>
+(function(){
+'use strict';
+var DURATION=45;
+function $(id){return document.getElementById(id);}
+/* ---------- audio ---------- */
+var AC=null;
+function beep(freq,ms){
+  try{
+    AC=AC||new (window.AudioContext||window.webkitAudioContext)();
+    var o=AC.createOscillator(), g=AC.createGain();
+    o.type='triangle'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001,AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.5,AC.currentTime+0.015);
+    g.gain.exponentialRampToValueAtTime(0.0001,AC.currentTime+(ms/1000));
+    o.connect(g); g.connect(AC.destination);
+    o.start(); o.stop(AC.currentTime+(ms/1000)+0.02);
+  }catch(e){}
+}
+/* ---------- storage ---------- */
+function loadBest(){try{var s=JSON.parse(localStorage.getItem('whack-a-mole-v1'));return (s&&s.best)||0;}catch(e){return 0;}}
+function saveBest(b){try{localStorage.setItem('whack-a-mole-v1',JSON.stringify({best:b}));}catch(e){}}
+var best=loadBest();
+/* ---------- pure logic (test hooks) ---------- */
+function pickCell(rng){return Math.floor((rng?rng():Math.random())*9);}
+function scoreFor(type){return type==='golden'?3:(type==='regular'?1:0);}
+function timeExpired(left){return left<=0;}
+if(typeof window!=='undefined'){window.__logic={pickCell:pickCell,scoreFor:scoreFor,timeExpired:timeExpired,DURATION:DURATION};}
+/* ---------- ui ---------- */
+var state='idle'; // idle | play | over
+var score=0, timeLeft=DURATION, holes=[], moleAt=[], tickTimer=null, spawnTimer=null;
+function buildHoles(){
+  var g=$('holes');
+  for(var i=0;i<9;i++){
+    var b=document.createElement('button');
+    b.className='hole'; b.setAttribute('data-focusable','');
+    b.setAttribute('aria-label','Hole '+(i+1));
+    var m=document.createElement('span'); m.className='mole'; m.textContent='🐹';
+    b.appendChild(m);
+    (function(ix,btn,ms){btn.addEventListener('click',function(){whack(ix);});})(i,b,m);
+    g.appendChild(b); holes.push(b); moleAt.push(null);
+  }
+}
+function updateMeta(){
+  $('scoreNum').textContent=score; $('timeNum').textContent=Math.ceil(timeLeft);
+  $('bestNum').textContent=best;
+  $('timefill').style.width=(100*timeLeft/DURATION)+'%';
+}
+function hideMole(i){
+  moleAt[i]=null;
+  holes[i].classList.remove('up'); holes[i].classList.remove('gold');
+}
+function spawn(){
+  if(state!=='play')return;
+  // count free cells
+  var free=[];
+  for(var i=0;i<9;i++)if(!moleAt[i])free.push(i);
+  if(free.length){
+    var i=free[Math.floor(Math.random()*free.length)];
+    var golden=Math.random()<0.15;
+    moleAt[i]=golden?'golden':'regular';
+    holes[i].classList.add('up');
+    holes[i].querySelector('.mole').textContent=golden?'🌟':'🐹';
+    if(golden)holes[i].classList.add('gold');
+    (function(ix){
+      setTimeout(function(){if(state==='play'&&moleAt[ix])hideMole(ix);},600+Math.random()*500);
+    })(i);
+  }
+  spawnTimer=setTimeout(spawn,380+Math.random()*320);
+}
+function whack(i){
+  if(state!=='play')return;
+  var t=moleAt[i];
+  if(!t)return; // miss = nothing
+  var pts=scoreFor(t);
+  score+=pts;
+  beep(t==='golden'?1200:880,120);
+  hideMole(i);
+  var h=holes[i]; h.classList.remove('whacked'); void h.offsetWidth; h.classList.add('whacked');
+  updateMeta();
+}
+function startGame(){
+  state='play'; score=0; timeLeft=DURATION;
+  for(var i=0;i<9;i++)hideMole(i);
+  $('startBtn').classList.add('hidden'); $('overPanel').classList.add('hidden');
+  updateMeta(); holes[4].focus();
+  spawn();
+  tickTimer=setInterval(function(){
+    timeLeft-=0.1;
+    if(timeExpired(timeLeft)){timeLeft=0; updateMeta(); endGame(); return;}
+    updateMeta();
+  },100);
+}
+function endGame(){
+  state='over';
+  if(tickTimer){clearInterval(tickTimer); tickTimer=null;}
+  if(spawnTimer){clearTimeout(spawnTimer); spawnTimer=null;}
+  for(var i=0;i<9;i++)hideMole(i);
+  var nb=false;
+  if(score>best){best=score; saveBest(best); nb=true;}
+  updateMeta();
+  $('finalScore').textContent=score;
+  $('newBest').textContent=nb?'★ NEW BEST! ★':'';
+  beep(300,400);
+  $('overPanel').classList.remove('hidden');
+  $('againBtn').focus();
+}
+/* ---------- keyboard ---------- */
+function moveHoleFocus(k){
+  var cur=0;
+  for(var i=0;i<9;i++)if(holes[i]===document.activeElement){cur=i;break;}
+  var r=Math.floor(cur/3), c=cur%3;
+  if(k==='ArrowUp')r=(r+2)%3; else if(k==='ArrowDown')r=(r+1)%3;
+  if(k==='ArrowLeft')c=(c+2)%3; else if(k==='ArrowRight')c=(c+1)%3;
+  holes[r*3+c].focus();
+}
+function menuNav(k){
+  var f=Array.prototype.slice.call(document.querySelectorAll('[data-focusable]'))
+    .filter(function(el){return el.offsetParent!==null&&!el.disabled;});
+  if(!f.length)return;
+  var i=f.indexOf(document.activeElement);
+  var d=(k==='ArrowRight'||k==='ArrowDown')?1:-1;
+  f[(i+d+f.length)%f.length].focus();
+}
+document.addEventListener('keydown',function(e){
+  var k=e.key;
+  if(k==='ArrowUp'||k==='ArrowDown'||k==='ArrowLeft'||k==='ArrowRight'||k===' '){e.preventDefault();}
+  if(state==='play'&&k.indexOf('Arrow')===0){moveHoleFocus(k);return;}
+  var ae=document.activeElement;
+  if((k==='Enter'||k===' ')&&ae&&ae.tagName==='BUTTON'){e.preventDefault(); ae.click();return;}
+  if(k.indexOf('Arrow')===0){menuNav(k);}
+});
+/* ---------- init ---------- */
+buildHoles(); updateMeta();
+$('startBtn').addEventListener('click',startGame);
+$('againBtn').addEventListener('click',startGame);
+$('startBtn').focus();
+})();
+</script>
+</body>
+</html>
